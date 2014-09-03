@@ -1,4 +1,4 @@
--module(erlCloud_data_keeper).
+-module(erlCluster_data_keeper).
 
 -behaviour(gen_server).
 

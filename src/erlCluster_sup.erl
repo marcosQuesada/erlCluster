@@ -1,4 +1,4 @@
--module(erlCloud_sup).
+-module(erlCluster_sup).
 
 -behaviour(supervisor).
 
@@ -23,8 +23,7 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
-    Node = ?CHILD(erlCloud_node, worker),
-
+    Node = ?CHILD(erlCluster_node, worker),
     {ok, {{simple_one_for_one, 10, 10}, [Node]}}.
 
 

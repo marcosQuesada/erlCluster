@@ -1,8 +1,8 @@
--module(erlCloud_partition_handler).
+-module(erlCluster_partition_handler).
 
--behaviour(erlCloud_partition).
+-behaviour(erlCluster_partition).
 
--include("erlCloud.hrl").
+-include("erlCluster.hrl").
 
 -export([get/2, set/3, init/1, handle_command/3]).
 

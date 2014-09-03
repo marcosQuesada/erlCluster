@@ -13,7 +13,7 @@ clean:
 
 start:
 	erl -name node1@127.0.0.1 -setcookie thesecretcookie \
-	-pa ebin deps/*/ebin -rsh ssh -boot start_sasl -s erlCloud
+	-pa ebin deps/*/ebin -rsh ssh -boot start_sasl -s erlCluster
 
 eunit: rm_eunit
 	ERL_FLAGS="-name node1@127.0.0.1 -setcookie thesecretcookie -pa ebin deps/*/ebin -rsh ssh" \
@@ -21,7 +21,7 @@ eunit: rm_eunit
 
 tests: rm_ebin compile
 	erl -name node1@127.0.0.1 -setcookie thesecretcookie \
-	-pa ebin deps/*/ebin -rsh ssh -eval "eunit:test({application, erlCloud}, [verbose])" -s init stop
+	-pa ebin deps/*/ebin -rsh ssh -eval "eunit:test({application, erlCluster}, [verbose])" -s init stop
 
 rm_ebin:
 	rm -rf ebin/

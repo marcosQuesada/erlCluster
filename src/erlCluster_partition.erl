@@ -1,11 +1,12 @@
--module(erlCloud_node).
+-module(erlCluster_partition).
 
--include("erlCloud.hrl").
+-include("erlCluster.hrl").
+
 
 -behaviour(gen_fsm).
 
 %% API
--export([start_link/0, map_ring/0, join/1, leave/0]).
+-export([start_link/0]).
 
 %% Partiton FSM states
 -export([joinning/2,joinning/3, leaving/2, leaving/3, running/2, running/3]).
@@ -13,6 +14,17 @@
 %% gen_fsm callbacks
 -export([init/1, handle_event/3,handle_sync_event/4, handle_info/3, 
 		terminate/3, code_change/4]).
+
+-export([behaviour_info/1]).
+-define(SERVER, ?MODULE).
+
+-spec behaviour_info(atom()) -> 'undefined' | [{atom(), arity()}].
+behaviour_info(callbacks) ->
+    [{init,1},
+     {handle_command, 3}];
+
+behaviour_info(_Other) ->
+    undefined.
 
 %%====================================================================
 %% API
@@ -24,16 +36,8 @@
 %% does not return until Module:init/1 has returned.
 %%--------------------------------------------------------------------
 start_link() ->
-  gen_fsm:start_link({global, node()}, ?MODULE, [], []).
+  gen_fsm:start_link({local, ?SERVER}, ?MODULE, [], []).
 
-map_ring() ->
-	gen_fsm:sync_send_all_state_event({global, node()}, map_ring).
-
-join(Node) ->
-	gen_fsm:sync_send_all_state_event({global, node()}, {join, Node}).
-
-leave() ->
-	gen_fsm:sync_send_all_state_event({global, node()}, leave).
 %%====================================================================
 %% gen_fsm callbacks
 %%====================================================================
@@ -47,10 +51,7 @@ leave() ->
 %% initialize.
 %%--------------------------------------------------------------------
 init([]) ->
-  {ok, running, #node{
-    map_ring = erlCloud:new(?TotalPartitions),
-    status = booting
-  }}.
+  {ok, state_name, nobody}.
 
 %%--------------------------------------------------------------------
 %% Function:
@@ -127,15 +128,6 @@ handle_event(_Event, StateName, State) ->
 %% gen_fsm:sync_send_all_state_event/2,3, this function is called to handle
 %% the event.
 %%--------------------------------------------------------------------
-handle_sync_event({join, Node}, _From, StateName, State) ->
-  {reply, {ok, Node}, StateName, State};
-
-handle_sync_event(leave, _From, StateName, State) ->
-  {reply, ok, StateName, State};
-
-handle_sync_event(map_ring, _From, StateName, State) ->
-  {reply, State#node.map_ring, StateName, State};
-
 handle_sync_event(Event, From, StateName, State) ->
   Reply = ok,
   {reply, Reply, StateName, State}.

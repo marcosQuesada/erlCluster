@@ -1,4 +1,4 @@
--module(erlCloud_app).
+-module(erlCluster_app).
 
 -behaviour(application).
 
@@ -10,7 +10,7 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-    erlCloud_sup:start_link().
+    erlCluster_sup:start_link().
 
 stop(_State) ->
     ok.
