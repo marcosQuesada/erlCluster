@@ -14,7 +14,7 @@ clean:
 start:
 	erl -name node1@127.0.0.1 -setcookie thesecretcookie \
 	-pa ebin deps/*/ebin -rsh ssh -boot start_sasl -s erlCluster
-
+	
 eunit: rm_eunit
 	ERL_FLAGS="-name node1@127.0.0.1 -setcookie thesecretcookie -pa ebin deps/*/ebin -rsh ssh" \
 	./rebar skip_deps=true compile eunit --verbose
@@ -28,3 +28,5 @@ rm_ebin:
 
 rm_eunit:
 	rm -rf .eunit/
+
+restart: rm_ebin compile start
