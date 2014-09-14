@@ -25,5 +25,6 @@ start_link() ->
 init([]) ->
     Node = ?CHILD(erlCluster_node, worker),
     {ok, {{simple_one_for_one, 10, 10}, [Node]}}.
+    %{ok, {{one_for_one, 10, 10}, []}}.
 
 

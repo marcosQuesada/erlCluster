@@ -5,10 +5,11 @@
 -behaviour(gen_fsm).
 
 %% API
--export([start_link/0, map_ring/0, join/1, leave/0]).
+-export([start_link/0, map_ring/0, join/1, leave/0, command/3]).
 
 %% Partiton FSM states
--export([joinning/2,joinning/3, leaving/2, leaving/3, running/2, running/3]).
+-export([booting/2, joinning/2,joinning/3, 
+         leaving/2, leaving/3, running/2, running/3]).
 
 %% gen_fsm callbacks
 -export([init/1, handle_event/3,handle_sync_event/4, handle_info/3, 
@@ -24,16 +25,20 @@
 %% does not return until Module:init/1 has returned.
 %%--------------------------------------------------------------------
 start_link() ->
-  gen_fsm:start_link({global, node()}, ?MODULE, [], []).
+  gen_fsm:start_link({global, {node, node()}}, ?MODULE, [], []).
+
+%% Command to a dedicated Key (Args equals Cmd(Args))
+command(PartitionId, Node, Args) ->
+  gen_fsm:sync_send_all_state_event({global, {node, Node}}, {cmd, PartitionId, Args}).
 
 map_ring() ->
-	gen_fsm:sync_send_all_state_event({global, node()}, map_ring).
+	gen_fsm:sync_send_all_state_event({global, {node, node()}}, map_ring).
 
 join(Node) ->
-	gen_fsm:sync_send_all_state_event({global, node()}, {join, Node}).
+	gen_fsm:sync_send_all_state_event({global, {node, node()}}, {join, Node}).
 
 leave() ->
-	gen_fsm:sync_send_all_state_event({global, node()}, leave).
+	gen_fsm:sync_send_all_state_event({global, {node, node()}}, leave).
 %%====================================================================
 %% gen_fsm callbacks
 %%====================================================================
@@ -47,10 +52,10 @@ leave() ->
 %% initialize.
 %%--------------------------------------------------------------------
 init([]) ->
-  {ok, running, #node{
-    map_ring = erlCluster:new(?TotalPartitions),
+  {ok, booting, #node{
+    map_ring = erlCluster_ring:new(?TotalPartitions),
     status = booting
-  }}.
+  }, 0}.
 
 %%--------------------------------------------------------------------
 %% Function:
@@ -64,6 +69,12 @@ init([]) ->
 %% the current state name StateName is called to handle the event. It is also
 %% called if a timeout occurs.
 %%--------------------------------------------------------------------
+booting(_Event, State) ->
+  io:format("Initializing Partitions ~n", []),
+  Ring = State#node.map_ring,
+  [erlCluster_partition:start_link(PartitionId) || {PartitionId, _ } <- Ring],
+  {next_state, running, State}.
+
 joinning(_Event, State) ->
   {next_state, joinning, State}.
 
@@ -71,6 +82,7 @@ leaving(_Event, State) ->
   {next_state, leaving, State}.
 
 running(_Event, State) ->
+  io:format("On running state, asynch event function ~n", []),
   {next_state, running, State}.
 %%--------------------------------------------------------------------
 %% Function:
@@ -89,14 +101,15 @@ running(_Event, State) ->
 %%--------------------------------------------------------------------
 joinning(_Event, _From, State) ->
     Reply = ok,
-  	{reply, Reply, joinning, State}.
+    {reply, Reply, joinning, State}.
 
 leaving(_Event, _From, State) ->
     Reply = ok,
-  	{reply, Reply, leaving, State}.
+    {reply, Reply, leaving, State}.
 
 running(_Event, _From, State) ->
-	Reply = ok,
+    io:format("On running state, synch event function ~n", []),
+	  Reply = ok,
   	{reply, Reply, running, State}.
 %%--------------------------------------------------------------------
 %% Function:
@@ -135,6 +148,10 @@ handle_sync_event(leave, _From, StateName, State) ->
 
 handle_sync_event(map_ring, _From, StateName, State) ->
   {reply, State#node.map_ring, StateName, State};
+
+handle_sync_event({cmd, PartitionId, [Cmd|Args]}, _From, StateName, State) ->
+  Result = erlCluster_partition:handle_command(PartitionId, Cmd, Args),
+  {reply, Result, StateName, State};
 
 handle_sync_event(Event, From, StateName, State) ->
   Reply = ok,

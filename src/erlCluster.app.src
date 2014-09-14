@@ -8,5 +8,7 @@
                   stdlib
                  ]},
   {mod, { erlCluster_app, []}},
-  {env, []}
+  {env, [
+  	{ partition_handler, erlCluster_partition_handler}
+   	]}
  ]}.

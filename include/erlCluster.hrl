@@ -11,6 +11,7 @@
 %% Partition Record
 -record(partition, {
     id,
+    handler,
     data,
     status
 }).
@@ -24,10 +25,10 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Common type definitions
 %%%%%%%%%%%%%%%%%%%%%%%%%%
-
+-define(DATA, #data{} ).
+-type data() :: ?DATA.
 -type node() :: term().
 -type ring() :: [{integer(), node()}].
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Defines

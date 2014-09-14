@@ -4,7 +4,7 @@
 
 %% API
 -export([new/0, new/1, join/2, leave/2]).
--export([nodes/1, partition/1, node/1]).
+-export([nodes/1, partition/2, node/1]).
 
 -export([partitions_node/2, process/1, reorder/2, pickPartitions/2]).
 
@@ -61,8 +61,9 @@ nodes(Ring) ->
 	AllNodes = [Node || {Partition, Node} <- Ring],
 	lists:usort(AllNodes).
 
-partition(KeyId) ->
-	partition_from_key(hashKey(KeyId)).
+partition(KeyId, Ring) ->
+	{0, node()}.
+	%partition_from_key(hashKey(KeyId)).
 
 node(KeyId) ->
 	ok.

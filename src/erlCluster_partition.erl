@@ -2,11 +2,10 @@
 
 -include("erlCluster.hrl").
 
-
 -behaviour(gen_fsm).
 
 %% API
--export([start_link/0]).
+-export([start_link/1, handle_command/3]).
 
 %% Partiton FSM states
 -export([joinning/2,joinning/3, leaving/2, leaving/3, running/2, running/3]).
@@ -35,8 +34,13 @@ behaviour_info(_Other) ->
 %% initialize. To ensure a synchronized start-up procedure, this function
 %% does not return until Module:init/1 has returned.
 %%--------------------------------------------------------------------
-start_link() ->
-  gen_fsm:start_link({local, ?SERVER}, ?MODULE, [], []).
+start_link(PartitionId) ->
+  {ok, Handler} = application:get_env(erlCluster, partition_handler),  
+  gen_fsm:start_link({local, list_to_atom(integer_to_list(PartitionId))}, ?MODULE, [PartitionId, Handler], []).
+
+-spec handle_command(PartitionId::integer(), Cmd::atom(), Args::list()) -> term().
+handle_command(PartitionId, Cmd, Args) ->
+  gen_fsm:sync_send_all_state_event(list_to_atom(integer_to_list(PartitionId)), {command, Cmd, Args}).
 
 %%====================================================================
 %% gen_fsm callbacks
@@ -50,8 +54,13 @@ start_link() ->
 %% gen_fsm:start_link/3,4, this function is called by the new process to
 %% initialize.
 %%--------------------------------------------------------------------
-init([]) ->
-  {ok, state_name, nobody}.
+init([PartitionId, Module]) ->
+  {ok, state_name, #partition{
+    id = PartitionId,
+    handler = Module,
+    data = Module:init(),
+    status = initializing
+  }}.
 
 %%--------------------------------------------------------------------
 %% Function:
@@ -128,7 +137,19 @@ handle_event(_Event, StateName, State) ->
 %% gen_fsm:sync_send_all_state_event/2,3, this function is called to handle
 %% the event.
 %%--------------------------------------------------------------------
-handle_sync_event(Event, From, StateName, State) ->
+handle_sync_event({command, Cmd, Args}, _From, StateName, State) ->
+  PartitionId = State#partition.id,
+  Data = State#partition.data,
+  Module = State#partition.handler,
+  Result = Module:handle_command(Cmd, Args, Data),
+  io:format("Handling comand on PartitionId ~p node ~p Command ~p Args ~p Result ~p ~n", [PartitionId, node(), Cmd, Args, Result]),
+  {reply, Result, StateName, State#partition{data = Result}};
+
+handle_sync_event(state, _From, StateName, State) ->
+  io:format("State is ~p ~n", [State]),
+  {reply, State, StateName, State};
+
+handle_sync_event(Event, _From, StateName, State) ->
   Reply = ok,
   {reply, Reply, StateName, State}.
 
