@@ -153,7 +153,7 @@ handle_sync_event({cmd, PartitionId, [Cmd|Args]}, _From, StateName, State) ->
   Result = erlCluster_partition:handle_command(PartitionId, Cmd, Args),
   {reply, Result, StateName, State};
 
-handle_sync_event(Event, From, StateName, State) ->
+handle_sync_event(_Event, _From, StateName, State) ->
   Reply = ok,
   {reply, Reply, StateName, State}.
 

@@ -19,7 +19,7 @@
 
 -spec behaviour_info(atom()) -> 'undefined' | [{atom(), arity()}].
 behaviour_info(callbacks) ->
-    [{init,1},
+    [{init,0},
      {handle_command, 3}];
 
 behaviour_info(_Other) ->
@@ -149,7 +149,7 @@ handle_sync_event(state, _From, StateName, State) ->
   io:format("State is ~p ~n", [State]),
   {reply, State, StateName, State};
 
-handle_sync_event(Event, _From, StateName, State) ->
+handle_sync_event(_Event, _From, StateName, State) ->
   Reply = ok,
   {reply, Reply, StateName, State}.
 
