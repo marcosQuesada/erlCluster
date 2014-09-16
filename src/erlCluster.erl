@@ -2,7 +2,9 @@
 
 -include("erlCluster.hrl").
 
--export([start/0, stop/0, set/2, get/1, command/2]).
+-export([start/0, stop/0, join/1, leave/0, command/2]).
+
+-export([set/2, get/1]).
 
 
 %% API
@@ -11,6 +13,12 @@ start() ->
 
 stop() ->
     ok.
+
+join(NodeName) ->
+	erlCluster_node:join(NodeName).
+
+leave() ->
+	erlCluster_node:leave().
 
 %%%% Command implementations
 get(Key) ->

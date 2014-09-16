@@ -35,10 +35,10 @@ map_ring() ->
 	gen_fsm:sync_send_all_state_event({global, {node, node()}}, map_ring).
 
 join(Node) ->
-	gen_fsm:sync_send_all_state_event({global, {node, node()}}, {join, Node}).
+  gen_fsm:sync_send_event({global, {node, node()}}, {join, Node}). 
 
 leave() ->
-	gen_fsm:sync_send_all_state_event({global, {node, node()}}, leave).
+  gen_fsm:sync_send_event({global, {node, node()}}, leave). 
 %%====================================================================
 %% gen_fsm callbacks
 %%====================================================================
@@ -76,10 +76,25 @@ booting(_Event, State) ->
   {next_state, running, State}.
 
 joinning(_Event, State) ->
-  {next_state, joinning, State}.
+  io:format("On joinning state, asynch event function ~n", []),
+  %% Synchro all cluster node state
+  NewRing = erlCluster_ring:join('foo@127.0.0.1', State#node.map_ring),
+  io:format("New Ring is ~p ~n", [NewRing]), 
+  {next_state, running, State#node{map_ring = NewRing}, 0}.
 
 leaving(_Event, State) ->
-  {next_state, leaving, State}.
+  io:format("On leaving state, asynch event function ~n", []),
+  NewRing = erlCluster_ring:leave('foo@127.0.0.1', State#node.map_ring),
+  io:format("New Ring is ~p ~n", [NewRing]), 
+  {next_state, running, State#node{map_ring = NewRing}, 0}.
+
+running({join, Node}, State) ->
+  io:format("On running state, join to Node ~p ~n", [Node]),
+  {next_state, joinning, State};
+
+running(leave, State) ->
+  io:format("On running state, asynch event function ~n", []),
+  {next_state, leaving, State};
 
 running(_Event, State) ->
   io:format("On running state, asynch event function ~n", []),
@@ -100,15 +115,29 @@ running(_Event, State) ->
 %% name as the current state name StateName is called to handle the event.
 %%--------------------------------------------------------------------
 joinning(_Event, _From, State) ->
-    Reply = ok,
-    {reply, Reply, joinning, State}.
+    io:format("On joinning state, Synchronous call ~n", []),
+    %% Synchro all cluster node state
+    Ring = State#node.map_ring,
+    NewRing = erlCluster_ring:join('foo@127.0.0.1', Ring),
+    io:format("New Ring is ~p ~n", [NewRing]),
+    {next_state, running, State#node{map_ring = NewRing}, 0}.
 
 leaving(_Event, _From, State) ->
     Reply = ok,
     {reply, Reply, leaving, State}.
 
+running({join, Node}, _From, State) ->
+    io:format("Switching to joinning state, joining Node ~p ~n", [Node]),
+    Reply = ok,
+    {reply, Reply, joinning, State, 0};
+
+running(leave, _From, State) ->
+    io:format("Switching to joinning state, synch event function ~n", []),
+    Reply = ok,
+    {reply, Reply, leaving, State, 0};
+
 running(_Event, _From, State) ->
-    io:format("On running state, synch event function ~n", []),
+    io:format("On running state ~n", []),
 	  Reply = ok,
   	{reply, Reply, running, State}.
 %%--------------------------------------------------------------------
@@ -141,6 +170,7 @@ handle_event(_Event, StateName, State) ->
 %% the event.
 %%--------------------------------------------------------------------
 handle_sync_event({join, Node}, _From, StateName, State) ->
+
   {reply, {ok, Node}, StateName, State};
 
 handle_sync_event(leave, _From, StateName, State) ->
