@@ -72,7 +72,8 @@ init([]) ->
 booting(_Event, State) ->
   io:format("Initializing Partitions ~n", []),
   Ring = State#node.map_ring,
-  [erlCluster_partition:start_link(PartitionId) || {PartitionId, _ } <- Ring],
+  %% To be moved to partition supervisor
+  [erlCluster_partition_sup:start_partition(PartitionId) || {PartitionId, _ } <- Ring],
   {next_state, running, State}.
 
 joinning(_Event, State) ->
@@ -116,11 +117,7 @@ running(_Event, State) ->
 %%--------------------------------------------------------------------
 joinning(_Event, _From, State) ->
     io:format("On joinning state, Synchronous call ~n", []),
-    %% Synchro all cluster node state
-    Ring = State#node.map_ring,
-    NewRing = erlCluster_ring:join('foo@127.0.0.1', Ring),
-    io:format("New Ring is ~p ~n", [NewRing]),
-    {next_state, running, State#node{map_ring = NewRing}, 0}.
+    {reply, ok, running, State}.
 
 leaving(_Event, _From, State) ->
     Reply = ok,
