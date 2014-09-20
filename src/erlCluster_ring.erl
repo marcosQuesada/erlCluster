@@ -102,7 +102,7 @@ total_assigned_partitions(Ring, NewNodeNames) ->
 			Total + 1
 	end.
 
-%% Process Ring to generate a list of nodes an its partitions
+%% Process Ring to generate an ordered {Node, PartitionList}
 -spec process(Ring::ring()) -> [{term(), list()}].
 process(Ring) ->
 	lists:sort(
@@ -117,13 +117,15 @@ process(Ring) ->
 	).
 
 %% ordered ring by the total partitions owned by node
+%% The more partitions a node own more priority in the result list.
 -spec reorder(OrderedRing::[{term(), list()}]) -> [{term(), list()}].
 reorder(OrderedRing) ->
-	[{Node, proplists:get_value(Node, OrderedRing)} ||{_, Node} <- lists:reverse(sort_ordered_ring(OrderedRing))].
+	[{Node, proplists:get_value(Node, OrderedRing)} ||{_, Node} <- sort_ordered_ring(OrderedRing)].
 
+%% Returns Priorized node list by partition owning
 -spec sort_ordered_ring(OrderedRing::[{term(), list()}]) -> [{integer(), term()}].
 sort_ordered_ring(OrderedRing) ->
-	lists:sort([{length(Partitions), Node} || {Node, Partitions} <-OrderedRing]).
+	lists:reverse(lists:sort([{length(Partitions), Node} || {Node, Partitions} <-OrderedRing])).
 
 %% Pick partitions from Ring when new node joins
 -spec pickPartitions(Ring::ring(), TotalPartitions::integer()) -> list().
@@ -144,6 +146,7 @@ pickPartitions(Ring, TotalPartitions) ->
 	),
 	Partitions.
 
+%% Replaces partition owning from Ring
 -spec update_ring(Ring::ring(), Partitions::list(), NewNodeName::term()) -> ring().	
 update_ring(Ring, Partitions, NewNodeName) ->
 	UpdatedRing = lists:foldl( 
@@ -265,8 +268,8 @@ update_ring_from_single_node_to_double_node_ring_test() ->
 
 sort_ordered_ring_test() ->
 	?assertEqual(
-		[{0 ,'node4@127.0.0.1'}, {3 ,'node2@127.0.0.1'}, {5 ,'node1@127.0.0.1'}, {8 ,'node3@127.0.0.1'}]
-		, sort_ordered_ring(fake_disordered_ring())
+		[{8 ,'node3@127.0.0.1'}, {5 ,'node1@127.0.0.1'}, {3 ,'node2@127.0.0.1'}, {0 ,'node4@127.0.0.1'}],
+		 sort_ordered_ring(fake_disordered_ring())
 	).
 
 get_partition_from_key_test() ->

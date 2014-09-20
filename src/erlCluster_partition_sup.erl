@@ -3,7 +3,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0, start_partition/1]).
+-export([start_link/0, start_partition/1, partition_list/0, print_partition_list/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -16,15 +16,18 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 start_partition(PartitionId) when is_integer(PartitionId) -> 
-	Name = list_to_atom("erlCluster_partition_" ++ integer_to_list(PartitionId)),
-	Child = {Name, {erlCluster_partition, start_link, [PartitionId]}, permanent, 5000, worker, [erlCluster_partition]},
+	Child = {integer_to_list(PartitionId), {erlCluster_partition, start_link, [PartitionId]}, permanent, 5000, worker, [erlCluster_partition]},
 	supervisor:start_child(erlCluster_partition_sup, Child).
-	
+
+partition_list() ->
+	 [{PartitionId, Pid} || {PartitionId, Pid, _, _} <- supervisor:which_children(erlCluster_partition_sup)].
+
+print_partition_list() ->
+	[io:format("Partition ~p Pid ~p ~n", [PartitionId, Pid]) || {PartitionId, Pid} <- erlCluster_partition_sup:partition_list()].
+
 %% ===================================================================
 %% Supervisor callbacks
 %% ===================================================================
 
 init([]) ->
     {ok, {{one_for_one, 10, 10}, []}}.
-
-

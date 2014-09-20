@@ -4,7 +4,7 @@
 
 -include("erlCluster.hrl").
 
--export([init/0, handle_command/3]).
+-export([init/0, handle_command/3, is_empty/1]).
 
 %% Set partition Data Structure
 -spec init() -> data().
@@ -22,3 +22,6 @@ handle_command(set, [Key, Value], Data) ->
 
 handle_command(_Cmd, _Args, _Data) ->
 	{ok, no_command_handler}.
+
+is_empty(Data) ->
+	dict:size(Data#data.index) =:= 0.

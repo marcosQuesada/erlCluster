@@ -72,7 +72,6 @@ init([]) ->
 booting(_Event, State) ->
   io:format("Initializing Partitions ~n", []),
   Ring = State#node.map_ring,
-  %% To be moved to partition supervisor
   [erlCluster_partition_sup:start_partition(PartitionId) || {PartitionId, _ } <- Ring],
   {next_state, running, State}.
 

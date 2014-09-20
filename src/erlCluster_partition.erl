@@ -5,7 +5,7 @@
 -behaviour(gen_fsm).
 
 %% API
--export([start_link/1, handle_command/3]).
+-export([start_link/1, handle_command/3, is_empty/1, stop/1]).
 
 %% Partiton FSM states
 -export([joinning/2,joinning/3, leaving/2, leaving/3, running/2, running/3]).
@@ -20,7 +20,8 @@
 -spec behaviour_info(atom()) -> 'undefined' | [{atom(), arity()}].
 behaviour_info(callbacks) ->
     [{init,0},
-     {handle_command, 3}];
+     {handle_command, 3},
+     {is_empty, 1}];
 
 behaviour_info(_Other) ->
     undefined.
@@ -42,6 +43,11 @@ start_link(PartitionId) ->
 handle_command(PartitionId, Cmd, Args) ->
   gen_fsm:sync_send_all_state_event(list_to_atom(integer_to_list(PartitionId)), {command, Cmd, Args}).
 
+is_empty(PartitionId) ->
+  gen_fsm:sync_send_all_state_event(list_to_atom(integer_to_list(PartitionId)), is_empty).
+
+stop(PartitionId) ->
+  gen_fsm:sync_send_all_state_event(list_to_atom(integer_to_list(PartitionId)), stop).
 %%====================================================================
 %% gen_fsm callbacks
 %%====================================================================
@@ -137,13 +143,17 @@ handle_event(_Event, StateName, State) ->
 %% gen_fsm:sync_send_all_state_event/2,3, this function is called to handle
 %% the event.
 %%--------------------------------------------------------------------
-handle_sync_event({command, Cmd, Args}, _From, StateName, State) ->
-  PartitionId = State#partition.id,
-  Data = State#partition.data,
-  Module = State#partition.handler,
+handle_sync_event({command, Cmd, Args}, _From, StateName, State = #partition{id = Id, handler = Module, data = Data}) ->
   Result = Module:handle_command(Cmd, Args, Data),
-  io:format("Handling comand on PartitionId ~p node ~p Command ~p Args ~p Result ~p ~n", [PartitionId, node(), Cmd, Args, Result]),
   {reply, Result, StateName, State#partition{data = Result}};
+
+handle_sync_event(is_empty, _From, StateName, State = #partition{handler = Module, data = Data}) ->
+  Result = Module:is_empty(Data),
+  {reply, Result, StateName, State};
+
+handle_sync_event(stop, _From, StateName, State) ->
+  io:format("State is ~p ~n", [State]),
+  {stop, normal, ok, State};
 
 handle_sync_event(state, _From, StateName, State) ->
   io:format("State is ~p ~n", [State]),
