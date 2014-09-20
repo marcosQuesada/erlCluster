@@ -9,11 +9,13 @@ functional_partition_test_() ->
         fun setup/0,
         fun teardown/1,
         [
-            fun is_empty_feature/0
+            fun is_empty_feature/0,
+            fun standard_status/0
         ]
     }.
 
 setup() ->
+    application:set_env(erlCluster, partition_handler, erlCluster_partition_handler),
 	{ok, Pid} = erlCluster_partition:start_link(0),
     [Pid].
 
@@ -30,4 +32,8 @@ wait_app_for_exit(Pid) ->
     end.
 
 is_empty_feature() ->
-	?assert(true).
+    ?assert(erlCluster_partition:is_empty(0)).
+
+standard_status() ->
+    {Status, _} = erlCluster_partition:status(0), 
+    ?assertEqual(running, Status).

@@ -166,8 +166,7 @@ handle_event(_Event, StateName, State) ->
 %% the event.
 %%--------------------------------------------------------------------
 handle_sync_event({join, Node}, _From, StateName, State) ->
-
-  {reply, {ok, Node}, StateName, State};
+    {reply, {ok, Node}, StateName, State};
 
 handle_sync_event(leave, _From, StateName, State) ->
   {reply, ok, StateName, State};
@@ -175,8 +174,8 @@ handle_sync_event(leave, _From, StateName, State) ->
 handle_sync_event(map_ring, _From, StateName, State) ->
   {reply, State#node.map_ring, StateName, State};
 
-handle_sync_event({cmd, PartitionId, [Cmd|Args]}, _From, StateName, State) ->
-  Result = erlCluster_partition:handle_command(PartitionId, Cmd, Args),
+handle_sync_event({cmd, PartitionId, Args}, _From, StateName, State) ->
+  Result = erlCluster_partition:handle_command(PartitionId, Args),
   {reply, Result, StateName, State};
 
 handle_sync_event(_Event, _From, StateName, State) ->

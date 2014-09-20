@@ -4,29 +4,22 @@
 
 %% Node Record
 -record(node, {
-    map_ring,
-    status
+    map_ring :: ring(),
+    status	 :: booting | in_service
 }).
 
 %% Partition Record
 -record(partition, {
-    id,
-    handler,
-    data,
-    status
-}).
-
-%% Partition Data Record
--record(data, {
-	index
+    id      :: integer(),
+    handler :: atom(),
+    data    :: term(),
+    status  :: booting |in_service
 }).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Common type definitions
 %%%%%%%%%%%%%%%%%%%%%%%%%%
--define(DATA, #data{} ).
--type data() :: ?DATA.
 -type node() :: term().
 -type ring() :: [{integer(), node()}].
 

@@ -5,7 +5,7 @@
 -behaviour(gen_fsm).
 
 %% API
--export([start_link/1, handle_command/3, is_empty/1, stop/1]).
+-export([start_link/1, handle_command/2, is_empty/1, stop/1, status/1]).
 
 %% Partiton FSM states
 -export([joinning/2,joinning/3, leaving/2, leaving/3, running/2, running/3]).
@@ -20,7 +20,7 @@
 -spec behaviour_info(atom()) -> 'undefined' | [{atom(), arity()}].
 behaviour_info(callbacks) ->
     [{init,0},
-     {handle_command, 3},
+     {handle_command, 2},
      {is_empty, 1}];
 
 behaviour_info(_Other) ->
@@ -39,15 +39,19 @@ start_link(PartitionId) ->
   {ok, Handler} = application:get_env(erlCluster, partition_handler),  
   gen_fsm:start_link({local, list_to_atom(integer_to_list(PartitionId))}, ?MODULE, [PartitionId, Handler], []).
 
--spec handle_command(PartitionId::integer(), Cmd::atom(), Args::list()) -> term().
-handle_command(PartitionId, Cmd, Args) ->
-  gen_fsm:sync_send_all_state_event(list_to_atom(integer_to_list(PartitionId)), {command, Cmd, Args}).
+-spec handle_command(PartitionId::integer(), Args::list()) -> term().
+handle_command(PartitionId, Args) ->
+  gen_fsm:sync_send_all_state_event(list_to_atom(integer_to_list(PartitionId)), {command, Args}).
 
 is_empty(PartitionId) ->
   gen_fsm:sync_send_all_state_event(list_to_atom(integer_to_list(PartitionId)), is_empty).
 
 stop(PartitionId) ->
   gen_fsm:sync_send_all_state_event(list_to_atom(integer_to_list(PartitionId)), stop).
+
+status(PartitionId) ->
+  gen_fsm:sync_send_all_state_event(list_to_atom(integer_to_list(PartitionId)), status).
+
 %%====================================================================
 %% gen_fsm callbacks
 %%====================================================================
@@ -61,7 +65,7 @@ stop(PartitionId) ->
 %% initialize.
 %%--------------------------------------------------------------------
 init([PartitionId, Module]) ->
-  {ok, state_name, #partition{
+  {ok, running, #partition{
     id = PartitionId,
     handler = Module,
     data = Module:init(),
@@ -143,21 +147,19 @@ handle_event(_Event, StateName, State) ->
 %% gen_fsm:sync_send_all_state_event/2,3, this function is called to handle
 %% the event.
 %%--------------------------------------------------------------------
-handle_sync_event({command, Cmd, Args}, _From, StateName, State = #partition{id = Id, handler = Module, data = Data}) ->
-  Result = Module:handle_command(Cmd, Args, Data),
-  {reply, Result, StateName, State#partition{data = Result}};
+handle_sync_event({command, Args}, _From, StateName, State = #partition{handler = Module, data = Data}) ->
+  {Result, NewData} = Module:handle_command(Args, Data),
+  {reply, Result, StateName, State#partition{data = NewData}};
 
 handle_sync_event(is_empty, _From, StateName, State = #partition{handler = Module, data = Data}) ->
   Result = Module:is_empty(Data),
   {reply, Result, StateName, State};
 
-handle_sync_event(stop, _From, StateName, State) ->
-  io:format("State is ~p ~n", [State]),
+handle_sync_event(stop, _From, _StateName, State) ->
   {stop, normal, ok, State};
 
-handle_sync_event(state, _From, StateName, State) ->
-  io:format("State is ~p ~n", [State]),
-  {reply, State, StateName, State};
+handle_sync_event(status, _From, StateName, State) ->
+  {reply, {StateName, State}, StateName, State};
 
 handle_sync_event(_Event, _From, StateName, State) ->
   Reply = ok,

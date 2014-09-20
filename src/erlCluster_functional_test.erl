@@ -9,24 +9,25 @@ functional_partition_test_() ->
         fun setup/0,
         fun teardown/1,
         [
-            fun basic_working/0
+            fun basic_working/0,
+            fun basic_command_handling/0
         ]
     }.
 
 setup() ->
     application:ensure_all_started(erlCluster, permanent),
+    Slave = start_slave(),
+    [Slave].
 
+start_slave() ->
     Host = '127.0.0.1',
     Args = " -pa ebin deps/*/ebin -setcookie thesecretcookie -rsh ssh",
-    {ok, Slave1} = slave:start(Host, slave1, Args),
+    {ok, Slave} = slave:start(Host, slave, Args),
+    rpc:call(Slave, application ,ensure_all_started,[erlCluster,permanent]),
+    Slave.
 
-    rpc:call(Slave1, application ,ensure_all_started,[erlCluster,permanent]),
-    ?assertEqual(pong, net_adm:ping(Slave1)),
-    ?assertEqual(Slave1, 'slave1@127.0.0.1'),
-    [Slave1].
-
-teardown([Slave1]) ->
-    slave:stop(Slave1),
+teardown([Slave]) ->
+    slave:stop(Slave),
     application:stop(erlCluster),
     wait_app_for_exit(erlCluster_sup),
     ok.
@@ -39,4 +40,8 @@ wait_app_for_exit(Name) ->
     end.
 
 basic_working() ->
-    ?assert(true).
+    ?assertEqual(pong, net_adm:ping('slave@127.0.0.1')).
+
+basic_command_handling() ->
+    [erlCluster:set(Value, Value) || Value <- lists:seq(0,50000)],
+    [?assertEqual(Value, erlCluster:get(Value)) || Value <- lists:seq(0,50000)].
