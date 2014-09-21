@@ -15,8 +15,9 @@
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-start_partition(PartitionId) when is_integer(PartitionId) -> 
-	Child = {integer_to_list(PartitionId), {erlCluster_partition, start_link, [PartitionId]}, permanent, 5000, worker, [erlCluster_partition]},
+-spec start_partition(PartitionId::atom()) ->term().
+start_partition(PartitionId) -> 
+	Child = {PartitionId, {erlCluster_partition, start_link, [PartitionId]}, permanent, 5000, worker, [erlCluster_partition]},
 	supervisor:start_child(erlCluster_partition_sup, Child).
 
 partition_list() ->

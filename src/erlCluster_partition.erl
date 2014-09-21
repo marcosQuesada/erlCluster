@@ -33,23 +33,23 @@
 -spec start_link(PartitionId::atom()) -> {ok, pid()}.
 start_link(PartitionId) ->
   {ok, Handler} = application:get_env(erlCluster, partition_handler),  
-  gen_fsm:start_link({local, list_to_atom(integer_to_list(PartitionId))}, ?MODULE, [PartitionId, Handler], []).
+  gen_fsm:start_link({local, PartitionId}, ?MODULE, [PartitionId, Handler], []).
 
 -spec handle_command(PartitionId::atom(), Args::list()) -> term().
 handle_command(PartitionId, Args) ->
-  gen_fsm:sync_send_all_state_event(list_to_atom(integer_to_list(PartitionId)), {command, Args}).
+  gen_fsm:sync_send_all_state_event(PartitionId, {command, Args}).
 
 -spec is_empty(PartitionId::atom()) -> boolean().
 is_empty(PartitionId) ->
-  gen_fsm:sync_send_all_state_event(list_to_atom(integer_to_list(PartitionId)), is_empty).
+  gen_fsm:sync_send_all_state_event(PartitionId, is_empty).
 
 -spec stop(PartitionId::atom()) -> term().
 stop(PartitionId) ->
-  gen_fsm:sync_send_all_state_event(list_to_atom(integer_to_list(PartitionId)), stop).
+  gen_fsm:sync_send_all_state_event(PartitionId, stop).
 
 -spec status(PartitionId::atom()) -> running | joinning | leaving.
 status(PartitionId) ->
-  gen_fsm:sync_send_all_state_event(list_to_atom(integer_to_list(PartitionId)), status).
+  gen_fsm:sync_send_all_state_event(PartitionId, status).
 
 %%====================================================================
 %% gen_fsm callbacks

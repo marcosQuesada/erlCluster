@@ -34,7 +34,7 @@ handle_command(Key, Args) ->
   Ring = erlCluster_node:map_ring(),
   {PartitionId, Node} = erlCluster_ring:partition(Key, Ring),
 
-  gen_fsm:sync_send_all_state_event({global, {node, Node}}, {cmd, PartitionId, Args}).
+  gen_fsm:sync_send_all_state_event({global, {node, Node}}, {cmd, list_to_atom(integer_to_list(PartitionId)), Args}).
 
 -spec map_ring() -> ring().
 map_ring() ->
@@ -80,7 +80,7 @@ init([]) ->
 booting(_Event, State) ->
   io:format("Initializing Partitions ~n", []),
   Ring = State#node.map_ring,
-  [erlCluster_partition_sup:start_partition(PartitionId) || {PartitionId, _ } <- Ring],
+  initialize_partitions(Ring),
   {next_state, running, State}.
 
 joinning(_Event, State) ->
@@ -224,3 +224,11 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+-spec initialize_partitions(Ring::ring()) -> term().
+initialize_partitions(Ring) ->
+  lists:foreach( 
+    fun({PartitionId, _}) ->
+       erlCluster_partition_sup:start_partition(list_to_atom(integer_to_list(PartitionId)))
+    end,
+    Ring
+  ).
