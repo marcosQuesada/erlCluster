@@ -5,7 +5,7 @@
 -behaviour(gen_fsm).
 
 %% API
--export([start_link/0, map_ring/0, join/1, leave/0, handle_command/2]).
+-export([start_link/0, map_ring/0,map_ring/1, join/1, leave/0, handle_command/2]).
 
 %% Partiton FSM states
 -export([booting/2, joinning/2,joinning/3, 
@@ -38,7 +38,11 @@ handle_command(Key, Args) ->
 
 -spec map_ring() -> ring().
 map_ring() ->
-	gen_fsm:sync_send_all_state_event({global, {node, node()}}, map_ring).
+  map_ring(node()).
+
+-spec map_ring(Node::atom()) -> ring().
+map_ring(Node) ->
+	gen_fsm:sync_send_all_state_event({global, {node, Node}}, map_ring).
 
 -spec join(Node::atom()) -> term().
 join(Node) ->
@@ -83,26 +87,17 @@ booting(_Event, State) ->
   initialize_partitions(Ring),
   {next_state, running, State}.
 
-joinning(_Event, State) ->
-  io:format("On joinning state, asynch event function ~n", []),
+joinning(_Event, State = #node{joinner = Node}) ->
   %% Synchro all cluster node state
-  NewRing = erlCluster_ring:join('foo@127.0.0.1', State#node.map_ring),
-  io:format("New Ring is ~p ~n", [NewRing]), 
-  {next_state, running, State#node{map_ring = NewRing}, 0}.
+  RemoteRing = erlCluster_node:map_ring(Node),
+  NewRing = erlCluster_ring:join(node(), RemoteRing),
+
+  %%order distribute on remote cluster nodes
+  {next_state, running, State#node{map_ring = NewRing, joinner = ''}, 0}.
 
 leaving(_Event, State) ->
-  io:format("On leaving state, asynch event function ~n", []),
   NewRing = erlCluster_ring:leave('foo@127.0.0.1', State#node.map_ring),
-  io:format("New Ring is ~p ~n", [NewRing]), 
   {next_state, running, State#node{map_ring = NewRing}, 0}.
-
-running({join, Node}, State) ->
-  io:format("On running state, join to Node ~p ~n", [Node]),
-  {next_state, joinning, State};
-
-running(leave, State) ->
-  io:format("On running state, asynch event function ~n", []),
-  {next_state, leaving, State};
 
 running(_Event, State) ->
   io:format("On running state, asynch event function ~n", []),
@@ -123,17 +118,20 @@ running(_Event, State) ->
 %% name as the current state name StateName is called to handle the event.
 %%--------------------------------------------------------------------
 joinning(_Event, _From, State) ->
-    io:format("On joinning state, Synchronous call ~n", []),
     {reply, ok, running, State}.
 
 leaving(_Event, _From, State) ->
-    Reply = ok,
-    {reply, Reply, leaving, State}.
+    {reply, ok, leaving, State}.
 
 running({join, Node}, _From, State) ->
-    io:format("Switching to joinning state, joining Node ~p ~n", [Node]),
-    Reply = ok,
-    {reply, Reply, joinning, State, 0};
+    case net_adm:ping(Node) of
+        pong ->
+            %% request remote (s) cluster nodes to pass joinning state
+            io:format("Switching to joinning state, joining Node ~p ~n", [Node]),
+            {reply, ok, joinning, State#node{joinner = Node}, 200};
+        Other ->
+            {reply, {Node, not_reachable}, running, State}
+    end;
 
 running(leave, _From, State) ->
     io:format("Switching to joinning state, synch event function ~n", []),
@@ -141,9 +139,7 @@ running(leave, _From, State) ->
     {reply, Reply, leaving, State, 0};
 
 running(_Event, _From, State) ->
-    io:format("On running state ~n", []),
-	  Reply = ok,
-  	{reply, Reply, running, State}.
+  	{reply, ok, running, State}.
 %%--------------------------------------------------------------------
 %% Function:
 %% handle_event(Event, StateName, State) -> {next_state, NextStateName,

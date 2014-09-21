@@ -5,7 +5,9 @@
   {registered, []},
   {applications, [
                   kernel,
-                  stdlib
+                  stdlib,
+                  inets,
+                  ssl
                  ]},
   {mod, { erlCluster_app, []}},
   {env, [
