@@ -14,17 +14,12 @@
 -export([init/1, handle_event/3,handle_sync_event/4, handle_info/3, 
 		terminate/3, code_change/4]).
 
--export([behaviour_info/1]).
--define(SERVER, ?MODULE).
+%% Data structure to be decleared on handler
+-type data() :: term().
 
--spec behaviour_info(atom()) -> 'undefined' | [{atom(), arity()}].
-behaviour_info(callbacks) ->
-    [{init,0},
-     {handle_command, 2},
-     {is_empty, 1}];
-
-behaviour_info(_Other) ->
-    undefined.
+-callback init() -> data().
+-callback handle_command(CmdArgs::term(),Data::data()) -> {term(), data()} | {error, data()}.
+-callback is_empty(Data::data()) -> boolean().
 
 %%====================================================================
 %% API
@@ -35,20 +30,24 @@ behaviour_info(_Other) ->
 %% initialize. To ensure a synchronized start-up procedure, this function
 %% does not return until Module:init/1 has returned.
 %%--------------------------------------------------------------------
+-spec start_link(PartitionId::atom()) -> {ok, pid()}.
 start_link(PartitionId) ->
   {ok, Handler} = application:get_env(erlCluster, partition_handler),  
   gen_fsm:start_link({local, list_to_atom(integer_to_list(PartitionId))}, ?MODULE, [PartitionId, Handler], []).
 
--spec handle_command(PartitionId::integer(), Args::list()) -> term().
+-spec handle_command(PartitionId::atom(), Args::list()) -> term().
 handle_command(PartitionId, Args) ->
   gen_fsm:sync_send_all_state_event(list_to_atom(integer_to_list(PartitionId)), {command, Args}).
 
+-spec is_empty(PartitionId::atom()) -> boolean().
 is_empty(PartitionId) ->
   gen_fsm:sync_send_all_state_event(list_to_atom(integer_to_list(PartitionId)), is_empty).
 
+-spec stop(PartitionId::atom()) -> term().
 stop(PartitionId) ->
   gen_fsm:sync_send_all_state_event(list_to_atom(integer_to_list(PartitionId)), stop).
 
+-spec status(PartitionId::atom()) -> running | joinning | leaving.
 status(PartitionId) ->
   gen_fsm:sync_send_all_state_event(list_to_atom(integer_to_list(PartitionId)), status).
 

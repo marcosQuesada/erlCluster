@@ -5,7 +5,7 @@
 -behaviour(gen_fsm).
 
 %% API
--export([start_link/0, map_ring/0, join/1, leave/0, command/3]).
+-export([start_link/0, map_ring/0, join/1, leave/0, handle_command/2]).
 
 %% Partiton FSM states
 -export([booting/2, joinning/2,joinning/3, 
@@ -24,19 +24,27 @@
 %% initialize. To ensure a synchronized start-up procedure, this function
 %% does not return until Module:init/1 has returned.
 %%--------------------------------------------------------------------
+-spec start_link() -> {ok,pid()} | ignore | {error,term()}.
 start_link() ->
   gen_fsm:start_link({global, {node, node()}}, ?MODULE, [], []).
 
-%% Command to a dedicated Key (Args equals Cmd(Args))
-command(PartitionId, Node, Args) ->
+%% handle_command to a dedicated Key (Args equals {Cmd,Arg, ...}))
+-spec handle_command(Key::term(), Args::term()) -> term().
+handle_command(Key, Args) ->
+  Ring = erlCluster_node:map_ring(),
+  {PartitionId, Node} = erlCluster_ring:partition(Key, Ring),
+
   gen_fsm:sync_send_all_state_event({global, {node, Node}}, {cmd, PartitionId, Args}).
 
+-spec map_ring() -> ring().
 map_ring() ->
 	gen_fsm:sync_send_all_state_event({global, {node, node()}}, map_ring).
 
+-spec join(Node::atom()) -> term().
 join(Node) ->
   gen_fsm:sync_send_event({global, {node, node()}}, {join, Node}). 
 
+-spec leave() -> term().
 leave() ->
   gen_fsm:sync_send_event({global, {node, node()}}, leave). 
 %%====================================================================
