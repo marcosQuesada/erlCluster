@@ -51,7 +51,7 @@ basic_two_nodes_join() ->
     Slave = 'slave@127.0.0.1',
     ?assertEqual(pong, net_adm:ping(Slave)),
     %RingS1 = rpc:call(Slave, erlCluster_ring, get_ring, []),
-    erlCluster:join('slave@127.0.0.1'),
+    erlCluster:join(Slave),
     timer:sleep(300), %% Required to allow synchronization to remote node
     ?assertEqual(real_bi_ring(), erlCluster_node:map_ring()).
 

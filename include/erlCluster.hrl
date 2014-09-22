@@ -5,8 +5,8 @@
 %% Node Record
 -record(node, {
     map_ring :: ring(),
-    status	 :: booting | in_service,
-    joinner  :: atom()
+    status	 :: booting | in_service | leaved,
+    remote_node  :: atom()
 }).
 
 %% Partition Record

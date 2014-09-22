@@ -90,19 +90,20 @@ booting(_Event, State) ->
     initialize_partitions(Ring),
     {next_state, running, State}.
 
-joinning(_Event, State = #node{joinner = Node}) ->
+joinning(_Event, State = #node{remote_node = Node}) ->
     %% Synchro all cluster node state
     RemoteRing = erlCluster_node:map_ring(Node),
     NewRing = erlCluster_ring:join(node(), RemoteRing),
     %%order distribute on remote cluster nodes
     propagate(NewRing),
 
-    {next_state, running, State#node{map_ring = NewRing, joinner = ''}, 0}.
+    {next_state, running, State#node{map_ring = NewRing, remote_node = ''}, 0}.
 
 leaving(_Event, State) ->
-    NewRing = erlCluster_ring:leave('foo@127.0.0.1', State#node.map_ring),
+    NewRing = erlCluster_ring:leave(node(), State#node.map_ring),
+    propagate(NewRing),
     %% Pending
-    {next_state, running, State#node{map_ring = NewRing}, 0}.
+    {next_state, running, State#node{map_ring = NewRing, status = leaved}, 0}.
 
 running(_Event, State) ->
     io:format("On running state, asynch event function ~n", []),
@@ -133,7 +134,7 @@ running({join, Node}, _From, State) ->
         pong ->
             %% request remote (s) cluster nodes to pass joinning state
             io:format("Switching to joinning state, joining Node ~p ~n", [Node]),
-            {reply, ok, joinning, State#node{joinner = Node}, 200};
+            {reply, ok, joinning, State#node{remote_node = Node}, 200};
         Other ->
             {reply, {Node, not_reachable}, running, State}
     end;
