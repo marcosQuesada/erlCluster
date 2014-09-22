@@ -42,15 +42,19 @@ map_ring() ->
 
 -spec map_ring(Node::atom()) -> ring().
 map_ring(Node) ->
-	gen_fsm:sync_send_all_state_event({global, {node, Node}}, map_ring).
+	  gen_fsm:sync_send_all_state_event({global, {node, Node}}, map_ring).
 
 -spec join(Node::atom()) -> term().
 join(Node) ->
-  gen_fsm:sync_send_event({global, {node, node()}}, {join, Node}). 
+    gen_fsm:sync_send_event({global, {node, node()}}, {join, Node}). 
 
 -spec leave() -> term().
 leave() ->
-  gen_fsm:sync_send_event({global, {node, node()}}, leave). 
+    gen_fsm:sync_send_event({global, {node, node()}}, leave). 
+
+-spec distribute(DestNode::atom(), NewRing::ring()) -> term().
+distribute(DestNode, NewRing) ->
+    gen_fsm:sync_send_all_state_event({global, {node, DestNode}}, {propagate, NewRing}). 
 %%====================================================================
 %% gen_fsm callbacks
 %%====================================================================
@@ -64,10 +68,10 @@ leave() ->
 %% initialize.
 %%--------------------------------------------------------------------
 init([]) ->
-  {ok, booting, #node{
-    map_ring = erlCluster_ring:new(?TotalPartitions),
-    status = booting
-  }, 0}.
+    {ok, booting, #node{
+        map_ring = erlCluster_ring:new(?TotalPartitions),
+        status = booting
+    }, 0}.
 
 %%--------------------------------------------------------------------
 %% Function:
@@ -82,26 +86,27 @@ init([]) ->
 %% called if a timeout occurs.
 %%--------------------------------------------------------------------
 booting(_Event, State) ->
-  io:format("Initializing Partitions ~n", []),
-  Ring = State#node.map_ring,
-  initialize_partitions(Ring),
-  {next_state, running, State}.
+    Ring = State#node.map_ring,
+    initialize_partitions(Ring),
+    {next_state, running, State}.
 
 joinning(_Event, State = #node{joinner = Node}) ->
-  %% Synchro all cluster node state
-  RemoteRing = erlCluster_node:map_ring(Node),
-  NewRing = erlCluster_ring:join(node(), RemoteRing),
+    %% Synchro all cluster node state
+    RemoteRing = erlCluster_node:map_ring(Node),
+    NewRing = erlCluster_ring:join(node(), RemoteRing),
+    %%order distribute on remote cluster nodes
+    propagate(NewRing),
 
-  %%order distribute on remote cluster nodes
-  {next_state, running, State#node{map_ring = NewRing, joinner = ''}, 0}.
+    {next_state, running, State#node{map_ring = NewRing, joinner = ''}, 0}.
 
 leaving(_Event, State) ->
-  NewRing = erlCluster_ring:leave('foo@127.0.0.1', State#node.map_ring),
-  {next_state, running, State#node{map_ring = NewRing}, 0}.
+    NewRing = erlCluster_ring:leave('foo@127.0.0.1', State#node.map_ring),
+    %% Pending
+    {next_state, running, State#node{map_ring = NewRing}, 0}.
 
 running(_Event, State) ->
-  io:format("On running state, asynch event function ~n", []),
-  {next_state, running, State}.
+    io:format("On running state, asynch event function ~n", []),
+    {next_state, running, State}.
 %%--------------------------------------------------------------------
 %% Function:
 %% state_name(Event, From, State) -> {next_state, NextStateName, NextState} |
@@ -152,7 +157,7 @@ running(_Event, _From, State) ->
 %% the event.
 %%--------------------------------------------------------------------
 handle_event(_Event, StateName, State) ->
-  {next_state, StateName, State}.
+    {next_state, StateName, State}.
 
 %%--------------------------------------------------------------------
 %% Function:
@@ -173,18 +178,21 @@ handle_sync_event({join, Node}, _From, StateName, State) ->
     {reply, {ok, Node}, StateName, State};
 
 handle_sync_event(leave, _From, StateName, State) ->
-  {reply, ok, StateName, State};
+    {reply, ok, StateName, State};
 
 handle_sync_event(map_ring, _From, StateName, State) ->
-  {reply, State#node.map_ring, StateName, State};
+    {reply, State#node.map_ring, StateName, State};
+
+handle_sync_event({propagate,NewRing}, _From, StateName, State) ->
+    io:format("Setting new Ring on node ~p ~n", [node()]),
+    {reply, ok, StateName, State#node{map_ring = NewRing}};
 
 handle_sync_event({cmd, PartitionId, Args}, _From, StateName, State) ->
-  Result = erlCluster_partition:handle_command(PartitionId, Args),
-  {reply, Result, StateName, State};
+    Result = erlCluster_partition:handle_command(PartitionId, Args),
+    {reply, Result, StateName, State};
 
 handle_sync_event(_Event, _From, StateName, State) ->
-  Reply = ok,
-  {reply, Reply, StateName, State}.
+    {reply, ok, StateName, State}.
 
 %%--------------------------------------------------------------------
 %% Function:
@@ -197,7 +205,7 @@ handle_sync_event(_Event, _From, StateName, State) ->
 %% (or a system message).
 %%--------------------------------------------------------------------
 handle_info(_Info, StateName, State) ->
-  {next_state, StateName, State}.
+    {next_state, StateName, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, StateName, State) -> void()
@@ -207,7 +215,7 @@ handle_info(_Info, StateName, State) ->
 %% Reason. The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _StateName, _State) ->
-  ok.
+    ok.
 
 %%--------------------------------------------------------------------
 %% Function:
@@ -215,16 +223,23 @@ terminate(_Reason, _StateName, _State) ->
 %% Description: Convert process state when code is changed
 %%--------------------------------------------------------------------
 code_change(_OldVsn, StateName, State, _Extra) ->
-  {ok, StateName, State}.
+    {ok, StateName, State}.
 
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
 -spec initialize_partitions(Ring::ring()) -> term().
 initialize_partitions(Ring) ->
-  lists:foreach( 
-    fun({PartitionId, _}) ->
-       erlCluster_partition_sup:start_partition(list_to_atom(integer_to_list(PartitionId)))
-    end,
+    lists:foreach( 
+        fun({PartitionId, _}) ->
+            erlCluster_partition_sup:start_partition(list_to_atom(integer_to_list(PartitionId)))
+        end,
     Ring
-  ).
+    ).
+
+-spec propagate(NewRing::ring()) -> term().
+propagate(NewRing) ->
+    %%order distribute on remote cluster nodes
+    OtherNodes = lists:delete(node(),erlCluster_ring:nodes(NewRing)),
+    [distribute(DestNode, NewRing) ||DestNode <- OtherNodes].
+  
