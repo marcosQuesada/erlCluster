@@ -159,6 +159,29 @@ update_ring(Ring, Partitions, NewNodeName) ->
 	),
 	lists:sort(UpdatedRing).
 
+difference(NewRing, OldRing) ->
+    OldPartitionsSet = sets:from_list(erlCluster_ring:partitions_node(node(), OldRing)),
+    NewPartitions = sets:from_list(erlCluster_ring:partitions_node(node(), NewRing)),
+    LeavingPartitions = sets:to_list(sets:subtract(OldPartitionsSet, NewPartitions)),
+    IncommingPartitions =sets:to_list(sets:subtract(NewPartitions, OldPartitionsSet)),
+    [{leave, LeavingPartitions}, {new, IncommingPartitions}].
+
+
+handle_partitions_test() ->
+  OldRing = erlCluster_ring:new(16),
+  NewRing = erlCluster_ring:join('node2@127.0.0.1', OldRing),
+  [{leave, LeavingPartitions}, {new, IncommingPartitions}] = difference(NewRing, OldRing),
+  ?assertEqual([1370157784997721485815954530671515330927436759040,
+               1278813932664540053428224228626747642198940975104,
+               1187470080331358621040493926581979953470445191168,
+               1096126227998177188652763624537212264741949407232,
+               1004782375664995756265033322492444576013453623296,
+               913438523331814323877303020447676887284957839360,
+               822094670998632891489572718402909198556462055424,
+               730750818665451459101842416358141509827966271488], LeavingPartitions
+  ),
+  ?assertEqual([], IncommingPartitions).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% TESTS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
