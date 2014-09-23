@@ -3,7 +3,7 @@
 -include("erlCluster.hrl").
 
 -behaviour(gen_fsm).
--export([start_link/0, map_ring/0,map_ring/1, join/1, leave/0, handle_command/2]).
+-export([start_link/0, map_ring/0,map_ring/1, join/1, leave/0, handle_command/2, distribute/2]).
 
 %% Partiton FSM states
 -export([booting/2, joinning/2,joinning/3, 
@@ -54,6 +54,7 @@ leave() ->
 
 -spec distribute(DestNode::atom(), NewRing::ring()) -> term().
 distribute(DestNode, NewRing) ->
+    io:format("Distributing Ring to node ~p Pid ~p from node ~p ~n ", [DestNode, node(), global:whereis_name({node, DestNode})]),
     gen_fsm:sync_send_all_state_event({global, {node, DestNode}}, {propagate, NewRing}). 
 %%====================================================================
 %% gen_fsm callbacks
@@ -96,14 +97,13 @@ joinning(_Event, State = #node{remote_node = Node, map_ring = OldRing}) ->
     NewRing = erlCluster_ring:join(node(), RemoteRing),
     %%order distribute on remote cluster nodes
     propagate(NewRing),
-    handle_partitions(NewRing, OldRing),
-    {next_state, running, State#node{map_ring = NewRing, remote_node = ''}, 0}.
+    
+    {next_state, running, State#node{remote_node = ''}, 0}.
 
 leaving(_Event, State = #node{map_ring = OldRing}) ->
     NewRing = erlCluster_ring:leave(node(), State#node.map_ring),
     propagate(NewRing),
-    handle_partitions(NewRing, OldRing),
-    {next_state, running, State#node{map_ring = NewRing, status = leaved}, 0}.
+    {next_state, running, State#node{status = leaved}, 0}.
 
 running(_Event, State) ->
     io:format("On running state, asynch event function ~n", []),
@@ -186,6 +186,7 @@ handle_sync_event(map_ring, _From, StateName, State) ->
 
 handle_sync_event({propagate,NewRing}, _From, StateName, State) ->
     io:format("Setting new Ring on node ~p ~n", [node()]),
+    handle_partitions(NewRing, State#node.map_ring),
     {reply, ok, StateName, State#node{map_ring = NewRing}};
 
 handle_sync_event({cmd, PartitionId, Args}, _From, StateName, State) ->
@@ -240,13 +241,20 @@ initialize_partitions(Ring) ->
 
 -spec propagate(NewRing::ring()) -> term().
 propagate(NewRing) ->
-    OtherNodes = lists:delete(node(),erlCluster_ring:nodes(NewRing)),
-    [distribute(DestNode, NewRing) ||DestNode <- OtherNodes].
+    [distribute(DestNode, NewRing) ||DestNode <- erlCluster_ring:nodes(NewRing)].
   
 -spec handle_partitions(NewRing::ring(), OldRing::ring()) -> term().
 handle_partitions(NewRing, OldRing) ->
     [{leave, LeavingPartitions}, {new, IncommingPartitions}] = erlCluster_ring:difference(NewRing, OldRing),
-    [erlCluster_partition_sup:stop_partition(list_to_atom(integer_to_list(PartitionId))) || PartitionId <- LeavingPartitions],
+    lists:foreach( 
+        fun(PartitionId) ->
+            %% Migrate content from partitions before stop it
+
+            erlCluster_partition_sup:stop_partition(list_to_atom(integer_to_list(PartitionId)))
+        end,
+    LeavingPartitions
+    ),
+
     [case whereis(PartitionId) of
         undefined ->
             erlCluster_partition_sup:start_partition(PartitionId);

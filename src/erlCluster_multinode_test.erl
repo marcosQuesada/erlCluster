@@ -57,8 +57,13 @@ multiple_nodes_form_cluster_join_leave_test_working() ->
     ?assert(lists:member('slaveA@127.0.0.1', Nodes)),
     ?assert(lists:member('slaveB@127.0.0.1', Nodes)),
     ?assert(lists:member('slaveC@127.0.0.1', Nodes)),
-    erlang:display(Nodes),
     ?assertEqual(4, length(Nodes)),
+    
+    %% Check partition termination process
+    PartitionList = rpc:call('slaveC@127.0.0.1', erlCluster_partition_sup, partition_list, []),
+    KilledPartitions = [PartitionId||{PartitionId, Pid} <- PartitionList, Pid =:= undefined],
+    ?assertEqual(48, length(KilledPartitions)),
+    
     rpc:call('slaveA@127.0.0.1', erlCluster, leave, []),
     timer:sleep(500),
     rpc:call('slaveB@127.0.0.1', erlCluster, leave, []),
@@ -67,5 +72,9 @@ multiple_nodes_form_cluster_join_leave_test_working() ->
     timer:sleep(500),
     NewRing = erlCluster_node:map_ring(),
     NewNodes = erlCluster_ring:nodes(NewRing),
-    erlang:display(NewNodes),
-    ?assertEqual([node()], erlCluster_ring:nodes(NewRing)).
+    ?assertEqual([node()], erlCluster_ring:nodes(NewRing)),
+    
+    %% check partition recreation
+    NewPartitionList = erlCluster_partition_sup:partition_list(),
+    NewKilledPartitions = [PartitionId||{PartitionId, Pid} <- NewPartitionList, Pid =:= undefined],
+    ?assertEqual(0, length(NewKilledPartitions)).

@@ -7,10 +7,22 @@
                   kernel,
                   stdlib,
                   inets,
-                  ssl
+                  ssl,
+                  lager
                  ]},
   {mod, { erlCluster_app, []}},
   {env, [
-  	{ partition_handler, erlCluster_partition_handler}
-   	]}
+  	{partition_handler, erlCluster_partition_handler}
+   	]},
+  {lager, [
+    {handlers, [
+      {lager_file_backend, [
+        {file, "log/erlCluster.log" },
+        {level, debug },
+        {size, 268435456},
+        {count, 10},
+        {date, "$D0"}
+      ]}
+    ]}
+  ]}    
  ]}.
