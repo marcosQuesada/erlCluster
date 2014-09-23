@@ -96,13 +96,13 @@ joinning(_Event, State = #node{remote_node = Node, map_ring = OldRing}) ->
     NewRing = erlCluster_ring:join(node(), RemoteRing),
     %%order distribute on remote cluster nodes
     propagate(NewRing),
-    %handle_partitions(NewRing, OldRing),
+    handle_partitions(NewRing, OldRing),
     {next_state, running, State#node{map_ring = NewRing, remote_node = ''}, 0}.
 
 leaving(_Event, State = #node{map_ring = OldRing}) ->
     NewRing = erlCluster_ring:leave(node(), State#node.map_ring),
     propagate(NewRing),
-    %handle_partitions(NewRing, OldRing),
+    handle_partitions(NewRing, OldRing),
     {next_state, running, State#node{map_ring = NewRing, status = leaved}, 0}.
 
 running(_Event, State) ->
@@ -240,21 +240,18 @@ initialize_partitions(Ring) ->
 
 -spec propagate(NewRing::ring()) -> term().
 propagate(NewRing) ->
-    %%order distribute on remote cluster nodes
     OtherNodes = lists:delete(node(),erlCluster_ring:nodes(NewRing)),
     [distribute(DestNode, NewRing) ||DestNode <- OtherNodes].
   
 -spec handle_partitions(NewRing::ring(), OldRing::ring()) -> term().
 handle_partitions(NewRing, OldRing) ->
-    %% move content before stop partitions
     [{leave, LeavingPartitions}, {new, IncommingPartitions}] = erlCluster_ring:difference(NewRing, OldRing),
-
-    %% leaving partitions are those contained in oldPartition that not appear on New one
-    %% incomming partitions are thos contained in NewPartitions that not appear on Old one
-    %%partitions that leave
-    %[erlCluster_partition:stop(PartitionId) || PartitionId <- LeavingPartitions],
-    %%new owning partitions
-    %% check if partition exists, if not erlCluster_partition_sup:new_partition()
-      %% request partition content
-      %% update data
+    [erlCluster_partition_sup:stop_partition(list_to_atom(integer_to_list(PartitionId))) || PartitionId <- LeavingPartitions],
+    [case whereis(PartitionId) of
+        undefined ->
+            erlCluster_partition_sup:start_partition(PartitionId);
+        Pid ->
+            ok
+      end
+     || PartitionId <- IncommingPartitions],
     ok.
