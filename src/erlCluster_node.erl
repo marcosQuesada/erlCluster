@@ -54,7 +54,6 @@ leave() ->
 
 -spec distribute(DestNode::atom(), NewRing::ring()) -> term().
 distribute(DestNode, NewRing) ->
-    io:format("Distributing Ring to node ~p Pid ~p from node ~p ~n ", [DestNode, node(), global:whereis_name({node, DestNode})]),
     gen_fsm:sync_send_all_state_event({global, {node, DestNode}}, {propagate, NewRing}). 
 %%====================================================================
 %% gen_fsm callbacks
@@ -97,11 +96,12 @@ joinning(_Event, State = #node{remote_node = Node, map_ring = OldRing}) ->
     NewRing = erlCluster_ring:join(node(), RemoteRing),
     %%order distribute on remote cluster nodes
     propagate(NewRing),
-    
-    {next_state, running, State#node{remote_node = ''}, 0}.
+    %% handle local partitions from inside process
+    handle_partitions(NewRing, State#node.map_ring),    
+    {next_state, running, State#node{map_ring = NewRing, remote_node = ''}, 0}.
 
 leaving(_Event, State = #node{map_ring = OldRing}) ->
-    NewRing = erlCluster_ring:leave(node(), State#node.map_ring),
+    NewRing = erlCluster_ring:leave(node(), OldRing),
     propagate(NewRing),
     {next_state, running, State#node{status = leaved}, 0}.
 
@@ -132,9 +132,12 @@ leaving(_Event, _From, State) ->
 running({join, Node}, _From, State) ->
     case net_adm:ping(Node) of
         pong ->
-            %% request remote (s) cluster nodes to pass joinning state
-            io:format("Switching to joinning state, joining Node ~p ~n", [Node]),
-            {reply, ok, joinning, State#node{remote_node = Node}, 200};
+            case global:whereis_name({node, Node}) of
+                undefined ->
+                    {reply, {Node, not_registered}, running, State};
+                _ ->
+                    {reply, ok, joinning, State#node{remote_node = Node}, 200}
+            end;
         Other ->
             {reply, {Node, not_reachable}, running, State}
     end;
@@ -185,7 +188,6 @@ handle_sync_event(map_ring, _From, StateName, State) ->
     {reply, State#node.map_ring, StateName, State};
 
 handle_sync_event({propagate,NewRing}, _From, StateName, State) ->
-    io:format("Setting new Ring on node ~p ~n", [node()]),
     handle_partitions(NewRing, State#node.map_ring),
     {reply, ok, StateName, State#node{map_ring = NewRing}};
 
@@ -241,7 +243,8 @@ initialize_partitions(Ring) ->
 
 -spec propagate(NewRing::ring()) -> term().
 propagate(NewRing) ->
-    [distribute(DestNode, NewRing) ||DestNode <- erlCluster_ring:nodes(NewRing)].
+    NodeList = lists:delete(node(), erlCluster_ring:nodes(NewRing)),
+    [distribute(DestNode, NewRing) ||DestNode <- NodeList].
   
 -spec handle_partitions(NewRing::ring(), OldRing::ring()) -> term().
 handle_partitions(NewRing, OldRing) ->
@@ -255,11 +258,16 @@ handle_partitions(NewRing, OldRing) ->
     LeavingPartitions
     ),
 
-    [case whereis(PartitionId) of
-        undefined ->
-            erlCluster_partition_sup:start_partition(PartitionId);
-        Pid ->
-            ok
-      end
-     || PartitionId <- IncommingPartitions],
+    lists:foreach( 
+        fun(PartitionId) ->
+            AtomPartitionId = list_to_atom(integer_to_list(PartitionId)),
+            case whereis(AtomPartitionId) of
+              undefined ->
+                  erlCluster_partition_sup:start_partition(AtomPartitionId);
+              Pid ->
+                  ok
+            end            
+        end,
+    IncommingPartitions
+    ),
     ok.
