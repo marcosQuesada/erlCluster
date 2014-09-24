@@ -22,7 +22,8 @@ start_partition(PartitionId) ->
 
 -spec stop_partition(PartitionId::atom()) -> term().
 stop_partition(PartitionId) ->
-	supervisor:terminate_child(erlCluster_partition_sup, PartitionId).
+	supervisor:terminate_child(erlCluster_partition_sup, PartitionId),
+	supervisor:delete_child(erlCluster_partition_sup, PartitionId).
 
 partition_list() ->
 	 [{PartitionId, Pid} || {PartitionId, Pid, _, _} <- supervisor:which_children(erlCluster_partition_sup)].

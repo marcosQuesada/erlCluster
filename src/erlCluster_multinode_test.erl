@@ -61,9 +61,9 @@ multiple_nodes_form_cluster_join_leave_test_working() ->
     
     %% Check partition termination process
     PartitionList = rpc:call('slaveC@127.0.0.1', erlCluster_partition_sup, partition_list, []),
-    KilledPartitions = [PartitionId||{PartitionId, Pid} <- PartitionList, Pid =:= undefined],
-    ?assertEqual(48, length(KilledPartitions)),
-    
+    ?assertEqual(16, length(PartitionList)),
+    UndefinedPartitions = [PartitionId||{PartitionId, Pid} <- PartitionList, Pid =:= undefined],
+    ?assertEqual(0, length(UndefinedPartitions)),  
     rpc:call('slaveA@127.0.0.1', erlCluster, leave, []),
     timer:sleep(500),
     rpc:call('slaveB@127.0.0.1', erlCluster, leave, []),
@@ -73,8 +73,10 @@ multiple_nodes_form_cluster_join_leave_test_working() ->
     NewRing = erlCluster_node:map_ring(),
     NewNodes = erlCluster_ring:nodes(NewRing),
     ?assertEqual([node()], erlCluster_ring:nodes(NewRing)),
-    
+
     %% check partition recreation
     NewPartitionList = erlCluster_partition_sup:partition_list(),
-    NewKilledPartitions = [PartitionId||{PartitionId, Pid} <- NewPartitionList, Pid =:= undefined],
-    ?assertEqual(0, length(NewKilledPartitions)).
+    ?assertEqual(64, length(NewPartitionList)),
+    %% assure no undefined process still on supervisor
+    NewUndefinedPartitions = [PartitionId||{PartitionId, Pid} <- NewPartitionList, Pid =:= undefined],
+    ?assertEqual(0, length(NewUndefinedPartitions)).
