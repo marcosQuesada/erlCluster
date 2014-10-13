@@ -3,7 +3,7 @@
 -include("erlCluster.hrl").
 
 %% API
--export([new/0, new/1, new/2, join/2, leave/2]).
+-export([new/0, new/1, new/2, join/2, leave/2, partition_owner/2]).
 -export([nodes/1, partition/2, partitions_node/2, difference/2]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -70,6 +70,10 @@ partition(KeyId, Ring) ->
 	Partition = round(hashKey(KeyId) div Increment) * Increment,
 	Node = proplists:get_value(Partition, Ring),
 	{Partition, Node}.
+
+%%@TODO: TEST COVERAGE
+partition_owner(PartitionId, Ring) ->
+	proplists:get_value(PartitionId, Ring).
 
 %% Return partition size
 -spec partition_increment(PartitionNumber::integer()) -> integer().
@@ -164,8 +168,7 @@ difference(NewRing, OldRing) ->
     NewPartitions = sets:from_list(erlCluster_ring:partitions_node(node(), NewRing)),
     LeavingPartitions = sets:to_list(sets:subtract(OldPartitionsSet, NewPartitions)),
     IncommingPartitions =sets:to_list(sets:subtract(NewPartitions, OldPartitionsSet)),
-    [{leave, LeavingPartitions}, {new, IncommingPartitions}].
-
+    [{leave, lists:sort(LeavingPartitions)}, {new, lists:sort(IncommingPartitions)}].
 
 handle_partitions_test() ->
   OldRing = erlCluster_ring:new(16),

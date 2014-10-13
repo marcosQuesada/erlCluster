@@ -3,7 +3,7 @@
 -include("erlCluster.hrl").
 
 -behaviour(gen_fsm).
--export([start_link/0, map_ring/0,map_ring/1, join/1, leave/0, handle_command/2, distribute/2]).
+-export([start_link/0, map_ring/0,map_ring/1, join/1, leave/0, handle_command/2, distribute/2, migrate/2]).
 
 %% Partiton FSM states
 -export([booting/2, joinning/2,joinning/3, 
@@ -55,6 +55,18 @@ leave() ->
 -spec distribute(DestNode::atom(), NewRing::ring()) -> term().
 distribute(DestNode, NewRing) ->
     gen_fsm:sync_send_all_state_event({global, {node, DestNode}}, {propagate, NewRing}). 
+
+migrate(PartitionId, DestNode) ->
+    AtomPartitionId = list_to_atom(integer_to_list(PartitionId)),
+    PartitionData = erlCluster_partition:content(AtomPartitionId),
+    {Size, _} = erlCluster_partition_handler:handle_command(size, PartitionData),
+    case Size of
+        0 ->
+            ok;
+        _ ->
+            gen_fsm:send_all_state_event({global, {node, DestNode}}, {migrate, PartitionId, PartitionData})
+    end.
+            
 %%====================================================================
 %% gen_fsm callbacks
 %%====================================================================
@@ -106,7 +118,6 @@ leaving(_Event, State = #node{map_ring = OldRing}) ->
     {next_state, running, State#node{status = leaved}, 0}.
 
 running(_Event, State) ->
-    io:format("On running state, asynch event function ~n", []),
     {next_state, running, State}.
 %%--------------------------------------------------------------------
 %% Function:
@@ -143,9 +154,7 @@ running({join, Node}, _From, State) ->
     end;
 
 running(leave, _From, State) ->
-    io:format("Switching to joinning state, synch event function ~n", []),
-    Reply = ok,
-    {reply, Reply, leaving, State, 0};
+    {reply, ok, leaving, State, 0};
 
 running(_Event, _From, State) ->
   	{reply, ok, running, State}.
@@ -160,6 +169,10 @@ running(_Event, _From, State) ->
 %% gen_fsm:send_all_state_event/2, this function is called to handle
 %% the event.
 %%--------------------------------------------------------------------
+handle_event({migrate, PartitionId, PartitionData}, StateName, State) ->
+    erlCluster_partition:set_data(list_to_atom(integer_to_list(PartitionId)), PartitionData),
+    {next_state, StateName, State};
+
 handle_event(_Event, StateName, State) ->
     {next_state, StateName, State}.
 
@@ -249,15 +262,7 @@ propagate(NewRing) ->
 -spec handle_partitions(NewRing::ring(), OldRing::ring()) -> term().
 handle_partitions(NewRing, OldRing) ->
     [{leave, LeavingPartitions}, {new, IncommingPartitions}] = erlCluster_ring:difference(NewRing, OldRing),
-    lists:foreach( 
-        fun(PartitionId) ->
-            %% Migrate content from partitions before stop it
-
-            erlCluster_partition_sup:stop_partition(list_to_atom(integer_to_list(PartitionId)))
-        end,
-    LeavingPartitions
-    ),
-
+    %% Ensure New Partitions exists
     lists:foreach( 
         fun(PartitionId) ->
             AtomPartitionId = list_to_atom(integer_to_list(PartitionId)),
@@ -269,5 +274,15 @@ handle_partitions(NewRing, OldRing) ->
             end            
         end,
     IncommingPartitions
+    ),
+    %% Handle leaving partitions
+    lists:foreach( 
+        fun(PartitionId) ->
+            %% Migrate content from partitions before stop it
+            DestNode = erlCluster_ring:partition_owner(PartitionId, NewRing),
+            erlCluster_node:migrate(PartitionId, DestNode),
+            erlCluster_partition_sup:stop_partition(list_to_atom(integer_to_list(PartitionId)))
+        end,
+    LeavingPartitions
     ),
     ok.
