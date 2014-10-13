@@ -1,13 +1,12 @@
 erlCluster [WIP]
 ================
  
- erlCluster is a distribution library, a proof of concept that enables your app to scale on nodes, where nodes will join 
-as a cluster, in a transparent way .
+ erlCluster is a distribution library, a proof of concept that enables your app to scale adding nodes, creating a cluster  in a transparent way .
 
-  It's a heavily riak core inspiration, in fact, it's a consecuence of riak core study, thinking
-on reinventing the same wheel I've finally decide to create my own version, what has let me to understand deeply how a cluster works.
+  This project is heavily inspired on riak core, in fact, it's a consecuence of riak core study, thinking
+on reinventing the basis of the same wheel I've finally decide to create my own basic version.
 
- As a example, thinking in riak database,  nodes are joined to create a cluster, allowing us to read and 
+ To understand better what's this library objective, as example, thinking in riak database,  nodes are joined to create a cluster, allowing us to read and 
 write data from each node in a transparent way, where routing part is done as a cluster feature. 
  Riak core has the same focus, example implementations give as a result a get/set over the 
 whole cluster, that enables to scale up adding more nodes, while the main app grows and consumes cluster resources.
