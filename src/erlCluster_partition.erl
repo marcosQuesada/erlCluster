@@ -5,7 +5,7 @@
 -behaviour(gen_fsm).
 
 %% API
--export([start_link/1, handle_command/2, is_empty/1, stop/1, status/1]).
+-export([start_link/1, handle_command/2, is_empty/1, stop/1, size/1, status/1, content/1, set_data/2]).
 
 %% Partiton FSM states
 -export([joinning/2,joinning/3, leaving/2, leaving/3, running/2, running/3]).
@@ -35,6 +35,10 @@ start_link(PartitionId) ->
   {ok, Handler} = application:get_env(erlCluster, partition_handler),  
   gen_fsm:start_link({local, PartitionId}, ?MODULE, [PartitionId, Handler], []).
 
+-spec size(PartitionId::atom()) -> integer().
+size(PartitionId) ->
+  handle_command(PartitionId, size).
+
 -spec handle_command(PartitionId::atom(), Args::list()) -> term().
 handle_command(PartitionId, Args) ->
   gen_fsm:sync_send_all_state_event(PartitionId, {command, Args}).
@@ -49,8 +53,21 @@ stop(PartitionId) ->
 
 -spec status(PartitionId::atom()) -> running | joinning | leaving.
 status(PartitionId) ->
-  gen_fsm:sync_send_all_state_event(PartitionId, status).
+    gen_fsm:sync_send_all_state_event(PartitionId, status).
 
+-spec content(PartitionId::atom()) -> data().
+content(PartitionId) ->
+    gen_fsm:sync_send_all_state_event(PartitionId, content).
+
+-spec set_data(PartitionId::atom(), PartitionData::data()) -> term().
+set_data(PartitionId, PartitionData) ->
+    {Size, _} = erlCluster_partition_handler:handle_command(size, PartitionData),
+    case Size of
+        0 ->
+            ok;
+        _ ->
+            gen_fsm:send_all_state_event(PartitionId, {set_data, PartitionData})
+    end.
 %%====================================================================
 %% gen_fsm callbacks
 %%====================================================================
@@ -128,6 +145,9 @@ running(_Event, _From, State) ->
 %% gen_fsm:send_all_state_event/2, this function is called to handle
 %% the event.
 %%--------------------------------------------------------------------
+handle_event({set_data, PartitionData}, StateName, State) ->
+  {next_state, StateName, State#partition{data = PartitionData}};
+
 handle_event(_Event, StateName, State) ->
   {next_state, StateName, State}.
 
@@ -159,6 +179,9 @@ handle_sync_event(stop, _From, _StateName, State) ->
 
 handle_sync_event(status, _From, StateName, State) ->
   {reply, {StateName, State}, StateName, State};
+
+handle_sync_event(content, _From, StateName, State = #partition{handler = _Module, data = Data}) ->
+    {reply, Data, StateName, State};
 
 handle_sync_event(_Event, _From, StateName, State) ->
   Reply = ok,

@@ -15,7 +15,12 @@ stop() ->
 
 -spec join(NodeName::atom()) -> term().
 join(NodeName) ->
-	erlCluster_node:join(NodeName).
+	case net_adm:ping(NodeName) of
+		pong ->
+			erlCluster_node:join(NodeName);
+		Other ->
+			io:format("Join failed, connectivity ~p ~n", [Other])
+	end.
 
 -spec leave() -> term().
 leave() ->
