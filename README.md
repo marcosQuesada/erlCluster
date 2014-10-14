@@ -1,5 +1,5 @@
-erlCluster [WIP]
-================
+erlCluster
+==========
  
  erlCluster is a distribution library, a proof of concept that enables your app to scale adding nodes, creating a cluster  in a transparent way .
 
