@@ -17,9 +17,10 @@ stop() ->
 join(NodeName) ->
 	case net_adm:ping(NodeName) of
 		pong ->
+            timer:sleep(1000),
 			erlCluster_node:join(NodeName);
 		Other ->
-			io:format("Join failed, connectivity ~p ~n", [Other])
+			io:format("Join failed: ~p ~n", [Other])
 	end.
 
 -spec leave() -> term().
@@ -37,7 +38,7 @@ set(Key, Value) ->
 
 -spec size()-> integer().
 size() ->
-	lists:foldl( 
+	lists:foldl(
 		fun({PartitionId, _}, Acc) ->
 			Size = handle_command(PartitionId, size),
 			io:format("Partition ~p size ~p ~n", [PartitionId, Size]),
@@ -48,5 +49,5 @@ size() ->
 	).
 
 -spec handle_command(Key::term(), Args::term()) -> term().
-handle_command(Key, Args) ->	
+handle_command(Key, Args) ->
 	erlCluster_node:handle_command(Key, Args).

@@ -20,7 +20,7 @@ new(PartitionNumber) ->
 -spec new(PartitionNumber::integer(), NodeName::atom()) -> ring().
 new(PartitionNumber, NodeName) ->
 	[{(Index * partition_increment(PartitionNumber)), NodeName} ||Index <- lists:seq(0, (PartitionNumber-1))].
- 
+
  %% Join Node to Ring
 -spec join(Node :: term(), Ring :: ring()) -> ring().
 join(Node, Ring) ->
@@ -40,7 +40,7 @@ leave(NodeName, Ring) ->
 	PartitionsToMove = proplists:get_value(NodeName, OrderedRing),
 	CleannedOrderedRing = proplists:delete(NodeName, OrderedRing),
 
-	{ResultRing,_} = lists:foldl( 
+	{ResultRing,_} = lists:foldl(
 		fun(Partition, {NewRing, NodeList}) ->
 			case length(NodeList) of
 				1 ->
@@ -54,7 +54,7 @@ leave(NodeName, Ring) ->
 		end,
 		{Ring, proplists:get_keys(CleannedOrderedRing)},
 		PartitionsToMove
-	),	
+	),
 	ResultRing.
 
 %% Get nodes from Ring
@@ -95,7 +95,7 @@ partitions_node(NodeName, Ring) ->
 exists(NodeName, Ring) ->
 	lists:member(NodeName, erlCluster_ring:nodes(Ring)).
 
-%% Return total assigneds partitions by node when a new Node joins to ring 
+%% Return total assigneds partitions by node when a new Node joins to ring
 -spec total_assigned_partitions(Ring::ring(), NewNodeNames::[atom()]) -> integer().
 total_assigned_partitions(Ring, NewNodeNames) ->
 	Total = round(length(Ring) / length(NewNodeNames)),
@@ -110,7 +110,7 @@ total_assigned_partitions(Ring, NewNodeNames) ->
 -spec process(Ring::ring()) -> [{term(), list()}].
 process(Ring) ->
 	lists:sort(
-		lists:foldl( 
+		lists:foldl(
 			fun(Node, OrderedRing) ->
 				Partitions = erlCluster_ring:partitions_node(Node, Ring),
 				OrderedRing ++ [{Node, Partitions}]
@@ -136,8 +136,8 @@ sort_ordered_ring(OrderedRing) ->
 pickPartitions(Ring, TotalPartitions) ->
 	OrderedRing = reorder(process(Ring)),
 	Nodes = [Node || {Node, _} <- OrderedRing],
-	{_, Partitions} = lists:foldl( 	
-		fun(Index, {NewOrderedRing, Parts}) -> 
+	{_, Partitions} = lists:foldl(
+		fun(Index, {NewOrderedRing, Parts}) ->
 			Node = lists:nth((Index rem length(Nodes) + 1), Nodes),
 			Pile = proplists:get_value(Node, NewOrderedRing),
 			Slice = lists:last(Pile),
@@ -151,10 +151,10 @@ pickPartitions(Ring, TotalPartitions) ->
 	Partitions.
 
 %% Replaces partition owning from Ring
--spec update_ring(Ring::ring(), Partitions::list(), NewNodeName::term()) -> ring().	
+-spec update_ring(Ring::ring(), Partitions::list(), NewNodeName::term()) -> ring().
 update_ring(Ring, Partitions, NewNodeName) ->
-	UpdatedRing = lists:foldl( 
-		fun(PartitionId, NewRing) -> 
+	UpdatedRing = lists:foldl(
+		fun(PartitionId, NewRing) ->
 			CleannedRing = proplists:delete(PartitionId, NewRing),
 			CleannedRing ++ [{PartitionId, NewNodeName}]
 		end,
@@ -174,14 +174,15 @@ handle_partitions_test() ->
   OldRing = erlCluster_ring:new(16),
   NewRing = erlCluster_ring:join('node2@127.0.0.1', OldRing),
   [{leave, LeavingPartitions}, {new, IncommingPartitions}] = difference(NewRing, OldRing),
-  ?assertEqual([1370157784997721485815954530671515330927436759040,
-               1278813932664540053428224228626747642198940975104,
-               1187470080331358621040493926581979953470445191168,
-               1096126227998177188652763624537212264741949407232,
-               1004782375664995756265033322492444576013453623296,
-               913438523331814323877303020447676887284957839360,
-               822094670998632891489572718402909198556462055424,
-               730750818665451459101842416358141509827966271488], LeavingPartitions
+  ?assertEqual([730750818665451459101842416358141509827966271488,
+                822094670998632891489572718402909198556462055424,
+                913438523331814323877303020447676887284957839360,
+                1004782375664995756265033322492444576013453623296,
+                1096126227998177188652763624537212264741949407232,
+                1187470080331358621040493926581979953470445191168,
+                1278813932664540053428224228626747642198940975104,
+                1370157784997721485815954530671515330927436759040],
+            LeavingPartitions
   ),
   ?assertEqual([], IncommingPartitions).
 
@@ -241,7 +242,7 @@ scale_up_and_down_ring_to_many_rings_test() ->
 
 leave_from_two_nodes_ring_test() ->
 	?assertEqual(
-		erlCluster_ring:new(8), 
+		erlCluster_ring:new(8),
 		erlCluster_ring:leave('node2@127.0.0.1', fake_ring_bi_node())
 	).
 
@@ -253,7 +254,7 @@ total_assigned_partitions_by_node_test() ->
 	?assertEqual(6, total_assigned_partitions(Ring, NodeListA)),
 	NodeListB = NodeListA ++ ['node4@127.0.0.1'],
 	?assertEqual(4, total_assigned_partitions(Ring, NodeListB)),
-	
+
 	RingA = erlCluster_ring:new(8),
 	?assertEqual(4, total_assigned_partitions(RingA, NodeList)).
 
@@ -276,7 +277,7 @@ reorder_ordered_ring_up_from_major_to_minor_test() ->
 
 pick_partitions_from_ring_test() ->
 	Ring = erlCluster_ring:new(16),
-	?assertEqual(lists:reverse(pickPartitions(Ring,8)), 
+	?assertEqual(lists:reverse(pickPartitions(Ring,8)),
 		[730750818665451459101842416358141509827966271488,
 		 822094670998632891489572718402909198556462055424,
 		 913438523331814323877303020447676887284957839360,
@@ -289,7 +290,7 @@ pick_partitions_from_ring_test() ->
 update_ring_from_single_node_to_double_node_ring_test() ->
 	Ring = erlCluster_ring:new(8),
 	Partitions = pickPartitions(Ring,4),
-	NewNodeName = 'node2@127.0.0.1', 
+	NewNodeName = 'node2@127.0.0.1',
 	?assertEqual(fake_ring_bi_node(), update_ring(Ring, Partitions, NewNodeName)).
 
 sort_ordered_ring_test() ->
@@ -328,7 +329,7 @@ fake_down_ordered_ring() ->
 		 1278813932664540053428224228626747642198940975104,
 		 1370157784997721485815954530671515330927436759040]
 	 }
-	].	
+	].
 
 fake_disordered_ring() ->
 	[{'node1@127.0.0.1',
