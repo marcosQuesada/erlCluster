@@ -33,7 +33,7 @@ handle_command({get, Key}, Data) ->
 			key_not_found
 	end,
 	{Result, Data};
-	
+
 handle_command({set, Key, Value}, Data) ->
 	NewDict = dict:append(Key, Value, Data#data.index),
 	{ok, #data{index = NewDict}};
@@ -43,5 +43,5 @@ handle_command(_Args, _Data) ->
 
 -spec is_empty(Data::data()) -> boolean().
 is_empty(Data) ->
-	%%dict:is_empty(Data#data.index).
-	dict:size(Data#data.index) =:= 0.
+    {Size, _} = handle_command(size, Data),
+	Size =:= 0.

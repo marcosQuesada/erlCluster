@@ -71,7 +71,8 @@ partition(KeyId, Ring) ->
 	Node = proplists:get_value(Partition, Ring),
 	{Partition, Node}.
 
-%%@TODO: TEST COVERAGE
+%% Return partition owner
+-spec partition_owner(PartitionId::integer(), Ring::ring()) -> atom().
 partition_owner(PartitionId, Ring) ->
 	proplists:get_value(PartitionId, Ring).
 
@@ -91,6 +92,7 @@ hashKey(KeyId) ->
 partitions_node(NodeName, Ring) ->
 	[Partition || {Partition, Node} <- Ring, Node =:= NodeName].
 
+%% Check if node exists on ring
 -spec exists(NewNodeName :: term(), Ring :: ring()) -> true | false.
 exists(NodeName, Ring) ->
 	lists:member(NodeName, erlCluster_ring:nodes(Ring)).
@@ -163,12 +165,18 @@ update_ring(Ring, Partitions, NewNodeName) ->
 	),
 	lists:sort(UpdatedRing).
 
+%% Return differences between both rings
+-spec difference(NewRing::ring(), OldRing::ring()) -> list().
 difference(NewRing, OldRing) ->
     OldPartitionsSet = sets:from_list(erlCluster_ring:partitions_node(node(), OldRing)),
     NewPartitions = sets:from_list(erlCluster_ring:partitions_node(node(), NewRing)),
     LeavingPartitions = sets:to_list(sets:subtract(OldPartitionsSet, NewPartitions)),
     IncommingPartitions =sets:to_list(sets:subtract(NewPartitions, OldPartitionsSet)),
     [{leave, lists:sort(LeavingPartitions)}, {new, lists:sort(IncommingPartitions)}].
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% TESTS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 handle_partitions_test() ->
   OldRing = erlCluster_ring:new(16),
@@ -186,9 +194,9 @@ handle_partitions_test() ->
   ),
   ?assertEqual([], IncommingPartitions).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% TESTS
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+partition_owner_test() ->
+    Ring = erlCluster_ring:new(16),
+    ?assertEqual(node(), erlCluster_ring:partition_owner(0, Ring)).
 generate_new_ring_test() ->
 	Ring = erlCluster_ring:new(16),
     ?assertEqual(16, length(Ring)).
