@@ -9,7 +9,8 @@ functional_multinode_operations_test_() ->
         fun setup/0,
         fun teardown/1,
         [
-            fun multiple_nodes_form_cluster_join_leave_test_working/0
+            fun multiple_nodes_form_cluster_join_leave_test_working/0,
+            fun populate_content_multiple_nodes_form_cluster_join_leave_test_working/0
         ]
     }.
 
@@ -80,3 +81,33 @@ multiple_nodes_form_cluster_join_leave_test_working() ->
     %% assure no undefined process still on supervisor
     NewUndefinedPartitions = [PartitionId||{PartitionId, Pid} <- NewPartitionList, Pid =:= undefined],
     ?assertEqual(0, length(NewUndefinedPartitions)).
+
+populate_content_multiple_nodes_form_cluster_join_leave_test_working() ->
+    %%populate content on single node cluster
+    [erlCluster:set(K,K)|| K <- lists:seq(1,100000)],
+    Slaves = ['slaveA@127.0.0.1','slaveB@127.0.0.1','slaveC@127.0.0.1'],
+    [?assertEqual(pong, net_adm:ping(Slave)) || Slave <- Slaves],
+    rpc:call('slaveA@127.0.0.1', erlCluster, join, [node()]),
+    timer:sleep(300),
+    rpc:call('slaveB@127.0.0.1', erlCluster, join, [node()]),
+    timer:sleep(300),
+    rpc:call('slaveC@127.0.0.1', erlCluster, join, [node()]),
+    timer:sleep(300),
+    Ring = erlCluster_node:map_ring(),
+    Nodes = erlCluster_ring:nodes(Ring),
+    ?assert(lists:member(node(), Nodes)),
+    ?assert(lists:member('slaveA@127.0.0.1', Nodes)),
+    ?assert(lists:member('slaveB@127.0.0.1', Nodes)),
+    ?assert(lists:member('slaveC@127.0.0.1', Nodes)),
+    ?assertEqual(4, length(Nodes)),
+    %%assert that content still there after scale up from 1 to 4 nodes
+    [?assertEqual(K, erlCluster:get(K))|| K <- lists:seq(1,100000)],
+    %%Scale down to single node
+    rpc:call('slaveA@127.0.0.1', erlCluster, leave, []),
+    timer:sleep(300),
+    rpc:call('slaveB@127.0.0.1', erlCluster, leave, []),
+    timer:sleep(300),
+    rpc:call('slaveC@127.0.0.1', erlCluster, leave, []),
+    timer:sleep(300),
+    %% assert that content still there
+    [?assertEqual(K, erlCluster:get(K))|| K <- lists:seq(1,100000)].
