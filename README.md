@@ -14,7 +14,7 @@ you need to know what data structure on your app needs to be global on your clus
 How it works? 
 =============
 
- It's based on a consistent hashing ring, using partitions as data destinations, where each partition has an owner node. When a new node joins the cluster, node claims its assigned cluster partitions, old node owners migrate his data to the new owner. Data manipulation is done using commands that are forwarded to the correct node and partition destination.
+ It's based on a consistent hashing ring, using partitions as data destinations, where each partition has an owner node. When a new node joins the cluster, node claims its assigned cluster partitions, old node owners migrate its data to the new owner. Data manipulation is done using commands that are forwarded to the correct node and partition destination.
 
  erlCLuster implementation is focused on a flexible way, you are free to implement how cluster 
 partition will work, declare and register your custom partition handler using erlCluster_partition behaviour ( erlCluster_partition_handler is the default one, take a look!). 
@@ -23,8 +23,8 @@ partition will work, declare and register your custom partition handler using er
 
  A basic implementation is to use erlCluster with your own backend data store, whatever you want (redis, mnesia ...), as a result you have a Key/Value cluster database...yep!
 
-Features [WIP]
-==============
+Features
+========
 
 - Join/leave nodes to cluster, handling partitions
 - Transparent command routing over the cluster
